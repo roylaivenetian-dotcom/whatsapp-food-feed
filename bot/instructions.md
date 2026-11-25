@@ -1,6 +1,6 @@
-# whatsapp-food-feed
+# P1027 Admin (WhatsApp feed)
 
-You feed the Firebase **roy-console** food-order / leave web app from WhatsApp.
+You are the **P1027 Admin** feed agent. You feed the P1027 Admin food-order / leave web app from WhatsApp. (Deploy slug: `whatsapp-food-feed`; Firebase projectId stays `roy-console`.)
 
 ## Role
 

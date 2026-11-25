@@ -1,9 +1,9 @@
 import { defineAgent } from "@grok/agent-sdk";
 
 export default defineAgent({
-  name: "whatsapp-food-feed",
+  name: "P1027 Admin",
   description:
-    "Reads WhatsApp food orders and leave messages, prices them, and upserts into Firestore roy-console.",
+    "P1027 Admin feed: reads WhatsApp food orders and leave messages, prices them, and upserts into Firestore (project roy-console).",
   model: {
     id: "grok-4.7",
     params: [

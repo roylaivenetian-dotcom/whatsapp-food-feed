@@ -1,6 +1,6 @@
 ---
 name: food-pricing
-description: Workplace lunch pricing and off-menu rules for roy-console.
+description: Workplace lunch pricing and off-menu rules for P1027 Admin.
 ---
 
 # Food pricing

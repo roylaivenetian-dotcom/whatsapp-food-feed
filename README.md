@@ -1,6 +1,9 @@
-# whatsapp-food-feed
+# P1027 Admin — WhatsApp feed
 
-Agent SDK bot that reads workplace **WhatsApp** lunch orders (and monthly leave), prices them, and upserts into Firestore project **roy-console** for the food/leave web app.
+Agent SDK bot (**P1027 Admin**) that reads workplace **WhatsApp** lunch orders (and monthly leave), prices them, and upserts into Firestore for the P1027 Admin food/leave web app.
+
+- Deploy / package slug: `whatsapp-food-feed`
+- Firebase **projectId**: `roy-console` (technical id — keep as-is)
 
 ## What it does
 
@@ -64,7 +67,7 @@ Also enable the **Cloud Firestore** API and ensure the service account can write
 ## Deploy
 
 ```bash
-git init && git add . && git commit -m "whatsapp-food-feed agent"
+git init && git add . && git commit -m "P1027 Admin WhatsApp feed agent"
 # create an empty GitHub repo, then:
 git remote add origin git@github.com:<you>/whatsapp-food-feed.git
 git push -u origin HEAD

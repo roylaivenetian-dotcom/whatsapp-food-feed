@@ -1,8 +1,8 @@
-# whatsapp-food-feed
+# P1027 Admin (whatsapp-food-feed)
 
-Agent SDK project (`@grok/agent-sdk`). This file is
-for coding agents editing the project. The served agent's prompt is
-`bot/instructions.md`.
+Agent SDK project (`@grok/agent-sdk`) for the **P1027 Admin** WhatsApp feed.
+Deploy slug remains `whatsapp-food-feed`; Firebase projectId remains `roy-console`.
+The served agent's prompt is `bot/instructions.md`.
 
 ## Loop
 

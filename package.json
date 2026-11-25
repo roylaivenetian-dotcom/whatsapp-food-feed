@@ -2,7 +2,7 @@
   "name": "whatsapp-food-feed",
   "private": true,
   "type": "module",
-  "description": "agent project: whatsapp-food-feed",
+  "description": "P1027 Admin WhatsApp food/leave feed (slug whatsapp-food-feed)",
   "scripts": {
     "check": "tsc --noEmit",
     "dev": "agent-sdk dev"
