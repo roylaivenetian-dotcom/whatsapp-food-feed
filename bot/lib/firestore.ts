@@ -2,9 +2,10 @@ import { createSign, createPrivateKey } from "node:crypto";
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { LeaveRecord, PricedFoodOrder } from "./pricing.js";
+import { FIREBASE_PROJECT_ID_DEFAULT } from "./config.js";
 
 export const FIRESTORE_PROJECT_ID =
-  process.env.FIREBASE_PROJECT_ID || "roy-console";
+  process.env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_ID_DEFAULT;
 
 /** Shared with the food-leave web app (see docs/food-leave-app.md). */
 export const COLLECTIONS = {

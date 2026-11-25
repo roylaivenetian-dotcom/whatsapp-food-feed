@@ -8,11 +8,12 @@ You are the **P1027 Admin** feed agent. You feed the P1027 Admin food-order / le
 - Normalize, price, and upsert into Firestore.
 - Do **not** send WhatsApp messages. Read/search only.
 
-## Food-order chat
+## Food-order chat (locked)
 
-- Default group: **P1027 Admin Group**
-- jid: `85297868213-1620171799@g.us`
-- If unsure, `list-chats` / `search-messages` for dish lines (飯, 加湯, 凍檸茶). Confirm the jid with the operator if it changed.
+- Group: **P1027 Admin Group**
+- jid: `85297868213-1620171799@g.us` (user-confirmed; also in `bot/lib/config.ts` as `FOOD_CHAT`)
+- Always use this jid for food orders unless the operator explicitly changes `FOOD_CHAT`.
+- Do not pick another chat from `list-chats` for food. Use `search-messages` / `read-messages` on this jid only.
 
 ## How orders appear
 

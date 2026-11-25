@@ -12,7 +12,7 @@ Agent SDK bot (**P1027 Admin**) that reads workplace **WhatsApp** lunch orders (
 - Upserts Firestore `orders`, `weeklyReports`, `leaveRequests`.
 - Schedules: **Friday 17:00 Asia/Hong_Kong** weekly summary; **1st of month** leave ingest.
 
-Default food chat: **P1027 Admin Group** (`85297868213-1620171799@g.us`).
+**Food chat (locked):** **P1027 Admin Group** (`85297868213-1620171799@g.us`) — see `bot/lib/config.ts` `FOOD_CHAT`.
 
 ## Local run
 
@@ -45,18 +45,28 @@ Without the service account, tools still run and append sample documents to:
 
 `/cursor/stores/self/internal/sample-firestore-payload.json`
 
-### Create the service account
+### Create the service account (required for live Firestore writes)
 
-1. Firebase console → project **roy-console** → Project settings → Service accounts.
-2. Generate a new private key (JSON).
-3. Locally: `export FIREBASE_SERVICE_ACCOUNT_JSON="$(cat ./sa.json)"` (keep `sa.json` out of git).
-4. Hosted: after deploy,
+This agent does **not** invent credentials. You must create them in Firebase:
+
+1. Open [Firebase Console](https://console.firebase.google.com/) → project **roy-console**.
+2. ⚙️ Project settings → **Service accounts**.
+3. Confirm **Firebase Admin SDK** node snippet shows project `roy-console`.
+4. Click **Generate new private key** → download the JSON (keep it private; never commit).
+5. Ensure **Cloud Firestore** is enabled and the service account can write collections `orders`, `weeklyReports`, `leaveRequests` (default Admin SDK key usually can).
+6. Locally:
 
 ```bash
-printf %s "$(cat ./sa.json)" | npx --yes "@grok/agent-sdk@0.7.3" secret set whatsapp-food-feed FIREBASE_SERVICE_ACCOUNT_JSON
+export FIREBASE_SERVICE_ACCOUNT_JSON="$(cat /path/to/downloaded-key.json)"
 ```
 
-Also enable the **Cloud Firestore** API and ensure the service account can write the collections below.
+7. After Cursor deploy of slug `whatsapp-food-feed`:
+
+```bash
+printf %s "$(cat /path/to/downloaded-key.json)" | npx --yes "@grok/agent-sdk@0.7.3" secret set whatsapp-food-feed FIREBASE_SERVICE_ACCOUNT_JSON
+```
+
+Paste the JSON only into that secret / env — never into chat. Without it, tools dry-run and append to `/cursor/stores/self/internal/sample-firestore-payload.json`.
 
 ## WhatsApp MCP
 
