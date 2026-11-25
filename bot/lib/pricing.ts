@@ -89,7 +89,9 @@ function cleanDish(dish: string): string {
   return dish
     .replace(/加湯|\+?\s*湯/g, " ")
     .replace(/凍檸茶|熱檸茶|檸檬茶|凍奶茶|熱奶茶|奶茶|凍咖啡|熱咖啡|咖啡|可樂|汽水/g, " ")
-    .replace(/加辣椒油|\+?\s*辣椒油/g, " ")
+    .replace(/加?辣椒油|\+?\s*辣椒油/g, " ")
+    .replace(/少少飯|走蔥/g, " ")
+    .replace(/\s*加\s*$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
