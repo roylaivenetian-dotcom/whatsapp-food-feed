@@ -12,12 +12,21 @@ export default defineAgent({
     ],
   },
   hosting: {
-    // Firestore REST + Google OAuth token endpoint
+    // Firestore REST / OAuth, plus Cloud Function HTTP ingest (asia-east2 / Hosting)
     egressDomains: [
       "firestore.googleapis.com",
       "oauth2.googleapis.com",
       "www.googleapis.com",
+      "asia-east2-sick-meal.cloudfunctions.net",
+      "sick-meal.web.app",
+      "sick-meal.firebaseapp.com",
     ],
-    secretNames: ["FIREBASE_SERVICE_ACCOUNT_JSON", "FIREBASE_PROJECT_ID"],
+    secretNames: [
+      "FIREBASE_SERVICE_ACCOUNT_JSON",
+      "FIREBASE_PROJECT_ID",
+      "FIREBASE_INGEST_KEY",
+      "FIREBASE_INGEST_URL",
+    ],
   },
 });
+

@@ -1,5 +1,5 @@
 import { createSign, createPrivateKey } from "node:crypto";
-import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import type { LeaveRecord, PricedFoodOrder } from "./pricing.js";
 import { FIREBASE_PROJECT_ID_DEFAULT } from "./config.js";
@@ -14,13 +14,26 @@ export const COLLECTIONS = {
   leaveRequests: "leaveRequests",
 } as const;
 
+/** Default Cloud Function URL (asia-east2). Override with FIREBASE_INGEST_URL. */
+export const DEFAULT_INGEST_URL =
+  "https://asia-east2-sick-meal.cloudfunctions.net/api";
+
+const INGEST_KEY_FILE_CANDIDATES = [
+  process.env.FIREBASE_INGEST_KEY_FILE,
+  "/cursor/stores/self/internal/ingest-key.txt",
+].filter(Boolean) as string[];
+
 type ServiceAccount = {
   client_email: string;
   private_key: string;
   project_id?: string;
 };
 
-type WriteMode = "live" | "dry-run" | "missing-credentials";
+type WriteMode =
+  | "live"
+  | "http-ingest"
+  | "dry-run"
+  | "missing-credentials";
 
 export type WriteResult = {
   mode: WriteMode;
@@ -41,6 +54,32 @@ function loadServiceAccount(): ServiceAccount | null {
   } catch {
     return null;
   }
+}
+
+/** Prefer env; else read sibling store file (never commit that file into this repo). */
+export function loadIngestKey(): string | null {
+  const fromEnv =
+    process.env.FIREBASE_INGEST_KEY?.trim() ||
+    process.env.INGEST_API_KEY?.trim();
+  if (fromEnv) return fromEnv;
+  for (const file of INGEST_KEY_FILE_CANDIDATES) {
+    try {
+      if (!existsSync(file)) continue;
+      const text = readFileSync(file, "utf8").trim();
+      if (text) return text;
+    } catch {
+      // ignore unreadable paths
+    }
+  }
+  return null;
+}
+
+export function ingestUrl(): string {
+  return (
+    process.env.FIREBASE_INGEST_URL?.trim() ||
+    process.env.INGEST_URL?.trim() ||
+    DEFAULT_INGEST_URL
+  );
 }
 
 function b64url(input: Buffer | string): string {
@@ -158,7 +197,7 @@ function appendSamplePayload(entry: {
         {
           projectId: FIRESTORE_PROJECT_ID,
           writtenAt: new Date().toISOString(),
-          note: "Dry-run sample payloads. Set FIREBASE_SERVICE_ACCOUNT_JSON for live writes.",
+          note: "Sample payloads. Prefer FIREBASE_INGEST_KEY HTTP ingest or FIREBASE_SERVICE_ACCOUNT_JSON.",
           documents: documents.slice(-200),
         },
         null,
@@ -171,30 +210,57 @@ function appendSamplePayload(entry: {
   }
 }
 
-async function upsertDocument(
+type IngestAction = "upsertOrder" | "createLeave";
+
+function ingestActionFor(
+  collection: string,
+): IngestAction | null {
+  if (collection === COLLECTIONS.orders) return "upsertOrder";
+  if (collection === COLLECTIONS.leaveRequests) return "createLeave";
+  return null;
+}
+
+async function postIngest(
+  action: IngestAction,
+  data: Record<string, unknown>,
+  key: string,
+): Promise<{ ok: boolean; detail: string; id?: string }> {
+  const url = ingestUrl();
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ingest-key": key,
+    },
+    body: JSON.stringify({ action, ...data }),
+  });
+  const text = await res.text();
+  let parsed: { ok?: boolean; id?: string; error?: string } = {};
+  try {
+    parsed = JSON.parse(text) as typeof parsed;
+  } catch {
+    parsed = {};
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      detail: `HTTP ingest ${res.status}: ${(parsed.error || text).slice(0, 400)}`,
+    };
+  }
+  return {
+    ok: true,
+    id: parsed.id,
+    detail: `Posted ${action} to ingest URL.`,
+  };
+}
+
+async function upsertViaAdmin(
   collection: string,
   docId: string,
   data: Record<string, unknown>,
-  opts?: { dryRun?: boolean },
+  sa: ServiceAccount,
 ): Promise<WriteResult> {
   const path = `${collection}/${docId}`;
-  const forceDry = opts?.dryRun === true || process.env.FIRESTORE_DRY_RUN === "1";
-  const sa = loadServiceAccount();
-
-  if (forceDry || !sa) {
-    appendSamplePayload({ collection, docId, data });
-    return {
-      mode: forceDry ? "dry-run" : "missing-credentials",
-      collection,
-      docId,
-      path,
-      ok: true,
-      detail: forceDry
-        ? "Dry-run: wrote sample payload locally."
-        : "FIREBASE_SERVICE_ACCOUNT_JSON unset; wrote sample payload only.",
-    };
-  }
-
   const projectId = sa.project_id || FIRESTORE_PROJECT_ID;
   const token = await getAccessToken(sa);
   const url =
@@ -222,6 +288,71 @@ async function upsertDocument(
     };
   }
   return { mode: "live", collection, docId, path, ok: true };
+}
+
+async function upsertDocument(
+  collection: string,
+  docId: string,
+  data: Record<string, unknown>,
+  opts?: { dryRun?: boolean },
+): Promise<WriteResult> {
+  const path = `${collection}/${docId}`;
+  const forceDry = opts?.dryRun === true || process.env.FIRESTORE_DRY_RUN === "1";
+  if (forceDry) {
+    appendSamplePayload({ collection, docId, data });
+    return {
+      mode: "dry-run",
+      collection,
+      docId,
+      path,
+      ok: true,
+      detail: "Dry-run: wrote sample payload locally.",
+    };
+  }
+
+  const sa = loadServiceAccount();
+  if (sa) {
+    return upsertViaAdmin(collection, docId, data, sa);
+  }
+
+  // Org may block SA keys — POST to Cloud Function ingest when key is available.
+  const key = loadIngestKey();
+  const action = ingestActionFor(collection);
+  if (key && action) {
+    const posted = await postIngest(action, data, key);
+    return {
+      mode: "http-ingest",
+      collection,
+      docId: posted.id || docId,
+      path,
+      ok: posted.ok,
+      detail: posted.detail,
+    };
+  }
+
+  if (key && !action) {
+    appendSamplePayload({ collection, docId, data });
+    return {
+      mode: "http-ingest",
+      collection,
+      docId,
+      path,
+      ok: true,
+      detail:
+        "HTTP ingest has no weeklyReports action; sample saved. Rely on fridayFoodReport CF or Admin SDK.",
+    };
+  }
+
+  appendSamplePayload({ collection, docId, data });
+  return {
+    mode: "missing-credentials",
+    collection,
+    docId,
+    path,
+    ok: true,
+    detail:
+      "No FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_INGEST_KEY; wrote sample payload only.",
+  };
 }
 
 export async function upsertFoodOrders(
@@ -288,11 +419,15 @@ export async function upsertWeeklyReport(
 
 export function credentialsStatus(): {
   hasServiceAccount: boolean;
+  hasIngestKey: boolean;
+  ingestUrl: string;
   projectId: string;
   dryRunEnv: boolean;
 } {
   return {
     hasServiceAccount: Boolean(loadServiceAccount()),
+    hasIngestKey: Boolean(loadIngestKey()),
+    ingestUrl: ingestUrl(),
     projectId: FIRESTORE_PROJECT_ID,
     dryRunEnv: process.env.FIRESTORE_DRY_RUN === "1",
   };

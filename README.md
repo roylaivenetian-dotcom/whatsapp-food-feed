@@ -33,42 +33,39 @@ Manual Friday schedule (dev never auto-fires):
 curl -X POST http://127.0.0.1:3000/whatsapp-food-feed/v1/dev/schedules/friday-food-summary
 ```
 
-## Secrets
+## Secrets / write path
 
 | Name | Required | Purpose |
 | --- | --- | --- |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | for live writes | Full Firebase **service account** JSON (Admin). Never commit. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | preferred | Admin SDK / REST writes. Org policy may block key creation. |
+| `FIREBASE_INGEST_KEY` | preferred fallback | Same value as Functions secret `INGEST_API_KEY`; sent as `x-ingest-key`. |
+| `FIREBASE_INGEST_URL` | optional | Default `https://asia-east2-sick-meal.cloudfunctions.net/api` (also Hosting `/api/**`). |
 | `FIREBASE_PROJECT_ID` | optional | Defaults to `sick-meal`. |
 | `FIRESTORE_DRY_RUN` | optional | Set `1` to force sample-file writes only. |
 
-Without the service account, tools still run and append sample documents to:
+**Order of preference:** Admin SA → HTTP ingest → local sample file  
+(`/cursor/stores/self/internal/sample-firestore-payload.json`).
 
-`/cursor/stores/self/internal/sample-firestore-payload.json`
+Local fallback for the ingest key (dev VM only): `/cursor/stores/self/internal/ingest-key.txt` — **never commit** that file into this repo.
 
-### Create the service account (required for live Firestore writes)
+HTTP body actions (sibling Function `api`): `upsertOrder`, `createLeave`.
 
-This agent does **not** invent credentials. You must create them in Firebase:
+### HTTP ingest (recommended when SA keys are org-blocked)
 
-1. Open [Firebase Console](https://console.firebase.google.com/) → project **sick-meal** (not roy-console).
-2. ⚙️ Project settings → **Service accounts**.
-3. Confirm **Firebase Admin SDK** node snippet shows project `sick-meal`.
-4. Click **Generate new private key** → download the JSON (keep it private; never commit). The key **must** be for **sick-meal**.
-5. Ensure **Cloud Firestore** is enabled and the service account can write collections `orders`, `weeklyReports`, `leaveRequests` (default Admin SDK key usually can).
-6. Locally:
+1. Deploy Functions on **sick-meal** (`api` + secret `INGEST_API_KEY`) from `p1027-admin`.
+2. Set the same key on this agent:
 
 ```bash
-export FIREBASE_SERVICE_ACCOUNT_JSON="$(cat /path/to/downloaded-key.json)"
-# optional override; default is already sick-meal
-export FIREBASE_PROJECT_ID=sick-meal
+printf %s "$(cat /cursor/stores/self/internal/ingest-key.txt)" | \
+  npx --yes "@grok/agent-sdk@0.7.3" secret set whatsapp-food-feed FIREBASE_INGEST_KEY
+# optional:
+# printf %s 'https://asia-east2-sick-meal.cloudfunctions.net/api' | \
+#   npx --yes "@grok/agent-sdk@0.7.3" secret set whatsapp-food-feed FIREBASE_INGEST_URL
 ```
 
-7. After Cursor deploy of slug `whatsapp-food-feed`:
+### Service account (optional if ingest works)
 
-```bash
-printf %s "$(cat /path/to/downloaded-key.json)" | npx --yes "@grok/agent-sdk@0.7.3" secret set whatsapp-food-feed FIREBASE_SERVICE_ACCOUNT_JSON
-```
-
-Paste the JSON only into that secret / env — never into chat. Without it, tools dry-run and append to `/cursor/stores/self/internal/sample-firestore-payload.json`.
+Org policy may block key creation. If allowed: Firebase Console → **sick-meal** → Service accounts → Generate key → set `FIREBASE_SERVICE_ACCOUNT_JSON` the same way. Never commit the JSON.
 
 ## WhatsApp MCP
 
