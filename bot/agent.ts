@@ -22,8 +22,9 @@ export default defineAgent({
       "sick-meal.firebaseapp.com",
     ],
     secretNames: [
-      "FIREBASE_SERVICE_ACCOUNT_JSON",
+      "FIREBASE_WRITE_TOKEN",
       "FIREBASE_PROJECT_ID",
+      "FIREBASE_SERVICE_ACCOUNT_JSON",
       "FIREBASE_INGEST_URL",
       "FIREBASE_INGEST_KEY",
     ],

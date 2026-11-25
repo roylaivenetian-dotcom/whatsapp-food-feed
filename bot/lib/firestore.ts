@@ -20,7 +20,12 @@ type ServiceAccount = {
   project_id?: string;
 };
 
-type WriteMode = "live" | "http-ingest" | "dry-run" | "missing-credentials";
+type WriteMode =
+  | "live"
+  | "client-sdk"
+  | "http-ingest"
+  | "dry-run"
+  | "missing-credentials";
 
 export type WriteResult = {
   mode: WriteMode;
@@ -31,7 +36,18 @@ export type WriteResult = {
   detail?: string;
 };
 
-/** Prefer Cloud Function ingest when org policy blocks SA key download. */
+/** Spark path: shared writeToken required by firestore.rules (no Blaze / Functions). */
+function writeToken(): string | null {
+  const t = (
+    process.env.FIREBASE_WRITE_TOKEN ||
+    process.env.FIREBASE_INGEST_KEY ||
+    process.env.INGEST_API_KEY ||
+    ""
+  ).trim();
+  return t || null;
+}
+
+/** Optional Cloud Function ingest (needs Blaze). Prefer client-sdk on Spark. */
 function ingestConfig(): { url: string; key: string } | null {
   const url = (process.env.FIREBASE_INGEST_URL || "").trim().replace(/\/$/, "");
   const key = (process.env.FIREBASE_INGEST_KEY || process.env.INGEST_API_KEY || "").trim();
@@ -179,6 +195,57 @@ function appendSamplePayload(entry: {
   }
 }
 
+/** Unauthenticated Firestore REST write (Spark). Rules require writeToken field. */
+async function upsertViaClientSdk(
+  collection: string,
+  docId: string,
+  data: Record<string, unknown>,
+): Promise<WriteResult> {
+  const path = `${collection}/${docId}`;
+  const token = writeToken();
+  if (!token) {
+    return {
+      mode: "missing-credentials",
+      collection,
+      docId,
+      path,
+      ok: false,
+      detail: "FIREBASE_WRITE_TOKEN unset",
+    };
+  }
+  const payload = { ...data, writeToken: token };
+  const projectId = FIRESTORE_PROJECT_ID;
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${projectId}` +
+    `/databases/(default)/documents/${collection}/${encodeURIComponent(docId)}`;
+  const fieldPaths = Object.keys(payload);
+  const qs = fieldPaths.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join("&");
+  const res = await fetch(`${url}?${qs}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ fields: documentFields(payload) }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    return {
+      mode: "client-sdk",
+      collection,
+      docId,
+      path,
+      ok: false,
+      detail: `Client Firestore PATCH ${res.status}: ${text.slice(0, 500)}`,
+    };
+  }
+  return {
+    mode: "client-sdk",
+    collection,
+    docId,
+    path,
+    ok: true,
+    detail: "Wrote via unauthenticated client REST + writeToken (Spark).",
+  };
+}
+
 async function upsertViaHttpIngest(
   collection: string,
   docId: string,
@@ -271,7 +338,12 @@ async function upsertDocument(
     };
   }
 
-  // No SA key path: Cloud Function HTTP ingest (Functions use default credentials).
+  // Spark preferred: client Firestore write + writeToken (no Blaze / no SA key).
+  if (!sa && writeToken()) {
+    return upsertViaClientSdk(collection, docId, data);
+  }
+
+  // Optional: Cloud Function HTTP ingest (requires Blaze-deployed Function).
   if (!sa && ingest) {
     return upsertViaHttpIngest(collection, docId, data);
   }
@@ -285,7 +357,7 @@ async function upsertDocument(
       path,
       ok: true,
       detail:
-        "FIREBASE_SERVICE_ACCOUNT_JSON unset and no FIREBASE_INGEST_URL/KEY; wrote sample payload only.",
+        "No FIREBASE_WRITE_TOKEN / SA / ingest URL; wrote sample payload only.",
     };
   }
 
@@ -382,22 +454,27 @@ export async function upsertWeeklyReport(
 
 export function credentialsStatus(): {
   hasServiceAccount: boolean;
+  hasWriteToken: boolean;
   hasHttpIngest: boolean;
   projectId: string;
   dryRunEnv: boolean;
-  writePath: "admin-sdk" | "http-ingest" | "dry-run-only";
+  writePath: "admin-sdk" | "client-sdk" | "http-ingest" | "dry-run-only";
 } {
   const hasServiceAccount = Boolean(loadServiceAccount());
+  const hasWriteToken = Boolean(writeToken());
   const hasHttpIngest = Boolean(ingestConfig());
   return {
     hasServiceAccount,
+    hasWriteToken,
     hasHttpIngest,
     projectId: FIRESTORE_PROJECT_ID,
     dryRunEnv: process.env.FIRESTORE_DRY_RUN === "1",
     writePath: hasServiceAccount
       ? "admin-sdk"
-      : hasHttpIngest
-        ? "http-ingest"
-        : "dry-run-only",
+      : hasWriteToken
+        ? "client-sdk"
+        : hasHttpIngest
+          ? "http-ingest"
+          : "dry-run-only",
   };
 }
