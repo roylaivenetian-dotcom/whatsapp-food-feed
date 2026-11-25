@@ -39,12 +39,12 @@ export default defineChannel<State>({
           send(
             [
               `Menu vision job ${body.jobId}.`,
-              `Open workspace file menu.${ext} (weekly 繁體中文 lunch grid, 鴻運美德小館 style).`,
-              `Transcribe every dish name in Traditional Chinese exactly as printed.`,
-              `Then call complete_menu_vision_job with status done and dishes:`,
-              `[{nameZh, nameEn:"", category:"meal"}].`,
-              `Deduplicate same dishes across weekday columns. No Tesseract. No Gemini.`,
-              `If you cannot read the photo, call complete_menu_vision_job with status error.`,
+              `Open workspace file menu.${ext} (weekly 繁體中文 lunch grid, Mon–Sat columns 星期一–六).`,
+              `Transcribe every dish in every day column with weekday. JSON dishes:`,
+              `[{nameZh, weekday:"mon"|"tue"|"wed"|"thu"|"fri"|"sat", nameEn:"", category:"meal"}].`,
+              `Do NOT collapse Mon–Sat into one list — same name on another day is a separate row.`,
+              `Dedupe only identical nameZh+weekday. Expect ~40–55 rows (~43 unique names).`,
+              `No Tesseract. No Gemini. On failure call complete_menu_vision_job with status error.`,
             ].join(" "),
             {
               continuationToken: `menu-vision:${body.jobId}`,

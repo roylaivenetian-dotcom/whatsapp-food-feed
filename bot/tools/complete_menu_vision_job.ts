@@ -18,6 +18,10 @@ export default defineTool({
       .array(
         z.object({
           nameZh: z.string(),
+          weekday: z
+            .enum(["mon", "tue", "wed", "thu", "fri", "sat"])
+            .optional()
+            .describe("Grid column; mon=星期一 … sat=星期六"),
           nameEn: z.string().optional(),
           category: z.enum(["meal", "soup", "drink"]).optional(),
         }),

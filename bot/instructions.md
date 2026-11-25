@@ -65,7 +65,7 @@ If credentials are missing, tools dry-run and write sample docs locally. Say so 
 
 - Collection: `menuVisionJobs` (queued by Menu paste/upload on sick-meal.web.app).
 - Channel `menu-vision` / schedule `menu-vision-jobs` attach the JPEG and use **your vision** (Grok). Never Gemini, never Tesseract.
-- After reading the photo, `complete_menu_vision_job` with Traditional Chinese `nameZh` dishes so the web UI can confirm-before-save.
+- After reading the photo, `complete_menu_vision_job` with Traditional Chinese `nameZh` + `weekday` (mon–sat) per grid column so the web UI can confirm-before-save. Do not collapse Mon–Sat into ~30 names — keep per-day rows (~43 unique names / ~40–55 rows).
 - Notify jid on jobs is the food group `85297868213-1620171799@g.us` (do not send WhatsApp for OCR).
 
 ## Friday 17:00 HKT

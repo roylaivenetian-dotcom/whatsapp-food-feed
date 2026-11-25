@@ -180,7 +180,12 @@ export type MenuVisionJob = {
   id: string;
   status: string;
   imageDataUrl: string | null;
-  dishes: Array<{ nameZh: string; nameEn?: string; category?: string }> | null;
+  dishes: Array<{
+    nameZh: string;
+    nameEn?: string;
+    category?: string;
+    weekday?: string | null;
+  }> | null;
   error: string | null;
   engine: string | null;
   notifyJid: string | null;
@@ -243,35 +248,41 @@ export async function listPendingMenuVisionJobs(limit = 5): Promise<MenuVisionJo
     }),
   });
   if (!res.ok) {
-    // Fallback: list collection and filter client-side (Spark public read)
-    const listUrl =
-      `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
-      `/databases/(default)/documents/${COLLECTIONS.menuVisionJobs}?pageSize=50`;
-    const listRes = await fetch(listUrl);
-    if (!listRes.ok) {
-      const text = await res.text();
-      throw new Error(`listPendingMenuVisionJobs ${res.status}: ${text.slice(0, 300)}`);
-    }
-    const listJson = (await listRes.json()) as {
-      documents?: { name?: string; fields?: Record<string, Record<string, unknown>> }[];
-    };
+    // Fallback: page the collection and filter client-side (Spark public read)
     const jobs: MenuVisionJob[] = [];
-    for (const doc of listJson.documents ?? []) {
-      const id = doc.name?.split("/").pop() ?? "";
-      const data = fieldsToObject(doc.fields);
-      const status = String(data.status ?? "");
-      if (status !== "pending" && status !== "running") continue;
-      jobs.push({
-        id,
-        status,
-        imageDataUrl: (data.imageDataUrl as string) ?? null,
-        dishes: (data.dishes as MenuVisionJob["dishes"]) ?? null,
-        error: (data.error as string) ?? null,
-        engine: (data.engine as string) ?? null,
-        notifyJid: (data.notifyJid as string) ?? null,
-        updatedAt: (data.updatedAt as string) ?? null,
-      });
-    }
+    let pageToken = "";
+    do {
+      const listUrl =
+        `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
+        `/databases/(default)/documents/${COLLECTIONS.menuVisionJobs}?pageSize=100` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "");
+      const listRes = await fetch(listUrl);
+      if (!listRes.ok) {
+        const text = await listRes.text();
+        throw new Error(`listPendingMenuVisionJobs ${listRes.status}: ${text.slice(0, 300)}`);
+      }
+      const listJson = (await listRes.json()) as {
+        documents?: { name?: string; fields?: Record<string, Record<string, unknown>> }[];
+        nextPageToken?: string;
+      };
+      for (const doc of listJson.documents ?? []) {
+        const id = doc.name?.split("/").pop() ?? "";
+        const data = fieldsToObject(doc.fields);
+        const status = String(data.status ?? "");
+        if (status !== "pending" && status !== "running") continue;
+        jobs.push({
+          id,
+          status,
+          imageDataUrl: (data.imageDataUrl as string) ?? null,
+          dishes: (data.dishes as MenuVisionJob["dishes"]) ?? null,
+          error: (data.error as string) ?? null,
+          engine: (data.engine as string) ?? null,
+          notifyJid: (data.notifyJid as string) ?? null,
+          updatedAt: (data.updatedAt as string) ?? null,
+        });
+      }
+      pageToken = listJson.nextPageToken ?? "";
+    } while (pageToken && jobs.length < limit * 3);
     jobs.sort((a, b) => String(a.updatedAt).localeCompare(String(b.updatedAt)));
     return jobs.slice(0, limit);
   }
@@ -300,7 +311,15 @@ export async function listPendingMenuVisionJobs(limit = 5): Promise<MenuVisionJo
 export async function completeMenuVisionJob(
   jobId: string,
   result:
-    | { status: "done"; dishes: Array<{ nameZh: string; nameEn?: string; category?: string }> }
+    | {
+        status: "done";
+        dishes: Array<{
+          nameZh: string;
+          nameEn?: string;
+          category?: string;
+          weekday?: string | null;
+        }>;
+      }
     | { status: "error"; error: string }
     | { status: "running" },
   opts?: { dryRun?: boolean },
