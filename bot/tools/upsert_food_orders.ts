@@ -21,7 +21,8 @@ export default defineTool({
   description: prompt`
     Price and upsert food orders into Firestore collection orders (P1027 Admin / project sick-meal).
     Idempotent by person+date+sourceMessageId. Prefer dryRun when unsure.
-    Without FIREBASE_SERVICE_ACCOUNT_JSON, writes a local sample payload only.
+    Write path: FIREBASE_SERVICE_ACCOUNT_JSON (Admin) OR FIREBASE_INGEST_URL + FIREBASE_INGEST_KEY
+    (Cloud Function HTTP, no downloaded SA key). Otherwise sample payload only.
   `,
   effect: "idempotent",
   execution: "server",

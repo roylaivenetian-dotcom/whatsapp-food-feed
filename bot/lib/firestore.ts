@@ -20,7 +20,7 @@ type ServiceAccount = {
   project_id?: string;
 };
 
-type WriteMode = "live" | "dry-run" | "missing-credentials";
+type WriteMode = "live" | "http-ingest" | "dry-run" | "missing-credentials";
 
 export type WriteResult = {
   mode: WriteMode;
@@ -30,6 +30,14 @@ export type WriteResult = {
   ok: boolean;
   detail?: string;
 };
+
+/** Prefer Cloud Function ingest when org policy blocks SA key download. */
+function ingestConfig(): { url: string; key: string } | null {
+  const url = (process.env.FIREBASE_INGEST_URL || "").trim().replace(/\/$/, "");
+  const key = (process.env.FIREBASE_INGEST_KEY || process.env.INGEST_API_KEY || "").trim();
+  if (!url || !key) return null;
+  return { url, key };
+}
 
 function loadServiceAccount(): ServiceAccount | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -171,6 +179,75 @@ function appendSamplePayload(entry: {
   }
 }
 
+async function upsertViaHttpIngest(
+  collection: string,
+  docId: string,
+  data: Record<string, unknown>,
+): Promise<WriteResult> {
+  const path = `${collection}/${docId}`;
+  const cfg = ingestConfig();
+  if (!cfg) {
+    return {
+      mode: "missing-credentials",
+      collection,
+      docId,
+      path,
+      ok: false,
+      detail: "FIREBASE_INGEST_URL / FIREBASE_INGEST_KEY unset",
+    };
+  }
+
+  let action: string;
+  let body: Record<string, unknown>;
+  if (collection === COLLECTIONS.orders) {
+    action = "upsertOrder";
+    body = { action, ...data };
+  } else if (collection === COLLECTIONS.leaveRequests) {
+    action = "createLeave";
+    body = { action, ...data };
+  } else if (collection === COLLECTIONS.weeklyReports) {
+    action = "upsertWeeklyReport";
+    body = { action, ...data };
+  } else {
+    return {
+      mode: "http-ingest",
+      collection,
+      docId,
+      path,
+      ok: false,
+      detail: `Unsupported collection for HTTP ingest: ${collection}`,
+    };
+  }
+
+  const res = await fetch(cfg.url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ingest-key": cfg.key,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    return {
+      mode: "http-ingest",
+      collection,
+      docId,
+      path,
+      ok: false,
+      detail: `Ingest HTTP ${res.status}: ${text.slice(0, 500)}`,
+    };
+  }
+  return {
+    mode: "http-ingest",
+    collection,
+    docId,
+    path,
+    ok: true,
+    detail: text.slice(0, 200),
+  };
+}
+
 async function upsertDocument(
   collection: string,
   docId: string,
@@ -180,18 +257,35 @@ async function upsertDocument(
   const path = `${collection}/${docId}`;
   const forceDry = opts?.dryRun === true || process.env.FIRESTORE_DRY_RUN === "1";
   const sa = loadServiceAccount();
+  const ingest = ingestConfig();
 
-  if (forceDry || !sa) {
+  if (forceDry) {
     appendSamplePayload({ collection, docId, data });
     return {
-      mode: forceDry ? "dry-run" : "missing-credentials",
+      mode: "dry-run",
       collection,
       docId,
       path,
       ok: true,
-      detail: forceDry
-        ? "Dry-run: wrote sample payload locally."
-        : "FIREBASE_SERVICE_ACCOUNT_JSON unset; wrote sample payload only.",
+      detail: "Dry-run: wrote sample payload locally.",
+    };
+  }
+
+  // No SA key path: Cloud Function HTTP ingest (Functions use default credentials).
+  if (!sa && ingest) {
+    return upsertViaHttpIngest(collection, docId, data);
+  }
+
+  if (!sa) {
+    appendSamplePayload({ collection, docId, data });
+    return {
+      mode: "missing-credentials",
+      collection,
+      docId,
+      path,
+      ok: true,
+      detail:
+        "FIREBASE_SERVICE_ACCOUNT_JSON unset and no FIREBASE_INGEST_URL/KEY; wrote sample payload only.",
     };
   }
 
@@ -288,12 +382,22 @@ export async function upsertWeeklyReport(
 
 export function credentialsStatus(): {
   hasServiceAccount: boolean;
+  hasHttpIngest: boolean;
   projectId: string;
   dryRunEnv: boolean;
+  writePath: "admin-sdk" | "http-ingest" | "dry-run-only";
 } {
+  const hasServiceAccount = Boolean(loadServiceAccount());
+  const hasHttpIngest = Boolean(ingestConfig());
   return {
-    hasServiceAccount: Boolean(loadServiceAccount()),
+    hasServiceAccount,
+    hasHttpIngest,
     projectId: FIRESTORE_PROJECT_ID,
     dryRunEnv: process.env.FIRESTORE_DRY_RUN === "1",
+    writePath: hasServiceAccount
+      ? "admin-sdk"
+      : hasHttpIngest
+        ? "http-ingest"
+        : "dry-run-only",
   };
 }
