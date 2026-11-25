@@ -6,10 +6,11 @@ import type { LeaveRecord, PricedFoodOrder } from "./pricing.js";
 export const FIRESTORE_PROJECT_ID =
   process.env.FIREBASE_PROJECT_ID || "roy-console";
 
+/** Shared with the food-leave web app (see docs/food-leave-app.md). */
 export const COLLECTIONS = {
-  foodOrders: "foodOrders",
+  orders: "orders",
   weeklyReports: "weeklyReports",
-  leaveRecords: "leaveRecords",
+  leaveRequests: "leaveRequests",
 } as const;
 
 type ServiceAccount = {
@@ -234,7 +235,7 @@ export async function upsertFoodOrders(
       updatedAt: now,
     };
     results.push(
-      await upsertDocument(COLLECTIONS.foodOrders, order.id, data, opts),
+      await upsertDocument(COLLECTIONS.orders, order.id, data, opts),
     );
   }
   return { results, count: results.length };
@@ -249,7 +250,7 @@ export async function upsertLeaveRecords(
   for (const record of records) {
     const data = { ...record, updatedAt: now };
     results.push(
-      await upsertDocument(COLLECTIONS.leaveRecords, record.id, data, opts),
+      await upsertDocument(COLLECTIONS.leaveRequests, record.id, data, opts),
     );
   }
   return { results, count: results.length };

@@ -19,7 +19,7 @@ const orderSchema = z.object({
 
 export default defineTool({
   description: prompt`
-    Price and upsert food orders into Firestore roy-console (foodOrders).
+    Price and upsert food orders into Firestore roy-console collection orders.
     Idempotent by person+date+sourceMessageId. Prefer dryRun when unsure.
     Without FIREBASE_SERVICE_ACCOUNT_JSON, writes a local sample payload only.
   `,
@@ -35,9 +35,9 @@ export default defineTool({
     count: orders.length,
     results: orders.map((o) => ({
       mode: "dry-run" as const,
-      collection: "foodOrders",
+      collection: "orders",
       docId: priceFoodOrder(o).id,
-      path: `foodOrders/${priceFoodOrder(o).id}`,
+      path: `orders/${priceFoodOrder(o).id}`,
       ok: true,
       detail: "Stubbed dry-run.",
     })),

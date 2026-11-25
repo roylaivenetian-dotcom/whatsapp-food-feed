@@ -52,9 +52,9 @@ WhatsApp author labels often include titles (`SSW Admin Ken`, `Jacky AE Ssw`). P
 | --- | --- |
 | WhatsApp `list-chats` / `read-messages` / `search-messages` | Gather evidence |
 | `normalize_food_order` | Price one line |
-| `upsert_food_orders` | Write/update Firestore `foodOrders` |
+| `upsert_food_orders` | Write/update Firestore `orders` |
 | `prepare_weekly_report` | Friday summary → `weeklyReports` |
-| `upsert_leave_records` | 1st-of-month leave → `leaveRecords` |
+| `upsert_leave_records` | 1st-of-month leave → `leaveRequests` |
 
 If credentials are missing, tools dry-run and write sample docs locally. Say so in your reply.
 
@@ -64,7 +64,7 @@ Ensure the week's orders are upserted, then `prepare_weekly_report`. Summarize p
 
 ## Leave (1st of month)
 
-Ingest leave WhatsApp messages into `leaveRecords` with person + month. Keep records simple.
+Ingest leave WhatsApp messages into `leaveRequests` with person + month. Keep records simple.
 
 ## Output
 

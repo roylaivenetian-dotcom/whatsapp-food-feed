@@ -6,7 +6,7 @@ Agent SDK bot that reads workplace **WhatsApp** lunch orders (and monthly leave)
 
 - Reads/search WhatsApp via Cursor account MCP (**Automata WhatsApp**); send is disabled.
 - Prices: meal **$50**, soup free, drink **+$5**; off-menu → amount **0**.
-- Upserts `foodOrders`, `weeklyReports`, `leaveRecords`.
+- Upserts Firestore `orders`, `weeklyReports`, `leaveRequests`.
 - Schedules: **Friday 17:00 Asia/Hong_Kong** weekly summary; **1st of month** leave ingest.
 
 Default food chat: **P1027 Admin Group** (`85297868213-1620171799@g.us`).

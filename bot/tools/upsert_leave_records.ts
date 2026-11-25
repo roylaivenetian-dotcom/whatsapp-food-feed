@@ -16,7 +16,7 @@ const leaveSchema = z.object({
 
 export default defineTool({
   description: prompt`
-    Upsert leave application records into Firestore leaveRecords.
+    Upsert leave application records into Firestore leaveRequests.
     Use on the 1st of each month when ingesting leave WhatsApp messages.
   `,
   effect: "idempotent",
@@ -33,9 +33,9 @@ export default defineTool({
       const n = normalizeLeaveRecord(r);
       return {
         mode: "dry-run" as const,
-        collection: "leaveRecords",
+        collection: "leaveRequests",
         docId: n.id,
-        path: `leaveRecords/${n.id}`,
+        path: `leaveRequests/${n.id}`,
         ok: true,
       };
     }),
