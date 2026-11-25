@@ -6,7 +6,7 @@ export const BRAND_NAME = "P1027 Admin";
 export const AGENT_SLUG = "whatsapp-food-feed";
 
 /** Firebase project id (technical — not the brand). */
-export const FIREBASE_PROJECT_ID_DEFAULT = "roy-console";
+export const FIREBASE_PROJECT_ID_DEFAULT = "sick-meal";
 
 /**
  * Confirmed food-order WhatsApp group (user-confirmed 2026-11-25).

@@ -3,7 +3,7 @@
 Agent SDK bot (**P1027 Admin**) that reads workplace **WhatsApp** lunch orders (and monthly leave), prices them, and upserts into Firestore for the P1027 Admin food/leave web app.
 
 - Deploy / package slug: `whatsapp-food-feed`
-- Firebase **projectId**: `roy-console` (technical id — keep as-is)
+- Firebase **projectId**: `sick-meal` (technical id — not the brand)
 
 ## What it does
 
@@ -38,7 +38,7 @@ curl -X POST http://127.0.0.1:3000/whatsapp-food-feed/v1/dev/schedules/friday-fo
 | Name | Required | Purpose |
 | --- | --- | --- |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | for live writes | Full Firebase **service account** JSON (Admin). Never commit. |
-| `FIREBASE_PROJECT_ID` | optional | Defaults to `roy-console`. |
+| `FIREBASE_PROJECT_ID` | optional | Defaults to `sick-meal`. |
 | `FIRESTORE_DRY_RUN` | optional | Set `1` to force sample-file writes only. |
 
 Without the service account, tools still run and append sample documents to:
@@ -49,15 +49,17 @@ Without the service account, tools still run and append sample documents to:
 
 This agent does **not** invent credentials. You must create them in Firebase:
 
-1. Open [Firebase Console](https://console.firebase.google.com/) → project **roy-console**.
+1. Open [Firebase Console](https://console.firebase.google.com/) → project **sick-meal** (not roy-console).
 2. ⚙️ Project settings → **Service accounts**.
-3. Confirm **Firebase Admin SDK** node snippet shows project `roy-console`.
-4. Click **Generate new private key** → download the JSON (keep it private; never commit).
+3. Confirm **Firebase Admin SDK** node snippet shows project `sick-meal`.
+4. Click **Generate new private key** → download the JSON (keep it private; never commit). The key **must** be for **sick-meal**.
 5. Ensure **Cloud Firestore** is enabled and the service account can write collections `orders`, `weeklyReports`, `leaveRequests` (default Admin SDK key usually can).
 6. Locally:
 
 ```bash
 export FIREBASE_SERVICE_ACCOUNT_JSON="$(cat /path/to/downloaded-key.json)"
+# optional override; default is already sick-meal
+export FIREBASE_PROJECT_ID=sick-meal
 ```
 
 7. After Cursor deploy of slug `whatsapp-food-feed`:

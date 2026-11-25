@@ -19,7 +19,7 @@ const orderSchema = z.object({
 
 export default defineTool({
   description: prompt`
-    Price and upsert food orders into Firestore collection orders (P1027 Admin / project roy-console).
+    Price and upsert food orders into Firestore collection orders (P1027 Admin / project sick-meal).
     Idempotent by person+date+sourceMessageId. Prefer dryRun when unsure.
     Without FIREBASE_SERVICE_ACCOUNT_JSON, writes a local sample payload only.
   `,
