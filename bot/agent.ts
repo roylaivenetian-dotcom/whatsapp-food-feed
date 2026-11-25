@@ -28,5 +28,6 @@ export default defineAgent({
       "FIREBASE_INGEST_URL",
       "FIREBASE_INGEST_KEY",
     ],
+    // menuVisionJobs + menuPhotos are read/written via Firestore REST (Spark)
   },
 });

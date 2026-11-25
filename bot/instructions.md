@@ -56,8 +56,17 @@ WhatsApp author labels often include titles (`SSW Admin Ken`, `Jacky AE Ssw`). P
 | `upsert_food_orders` | Write/update Firestore `orders` |
 | `prepare_weekly_report` | Friday summary → `weeklyReports` |
 | `upsert_leave_records` | 1st-of-month leave → `leaveRequests` |
+| `list_pending_menu_vision_jobs` / `get_menu_vision_job` | Menu admin OCR queue |
+| `complete_menu_vision_job` | Write dish JSON back for https://sick-meal.web.app confirm UI |
 
 If credentials are missing, tools dry-run and write sample docs locally. Say so in your reply.
+
+## Menu admin vision (Grok only)
+
+- Collection: `menuVisionJobs` (queued by Menu paste/upload on sick-meal.web.app).
+- Channel `menu-vision` / schedule `menu-vision-jobs` attach the JPEG and use **your vision** (Grok). Never Gemini, never Tesseract.
+- After reading the photo, `complete_menu_vision_job` with Traditional Chinese `nameZh` dishes so the web UI can confirm-before-save.
+- Notify jid on jobs is the food group `85297868213-1620171799@g.us` (do not send WhatsApp for OCR).
 
 ## Friday 17:00 HKT
 

@@ -12,6 +12,7 @@ export const COLLECTIONS = {
   orders: "orders",
   weeklyReports: "weeklyReports",
   leaveRequests: "leaveRequests",
+  menuVisionJobs: "menuVisionJobs",
 } as const;
 
 type ServiceAccount = {
@@ -145,6 +146,179 @@ function documentFields(data: Record<string, unknown>): Record<string, unknown> 
     fields[k] = toFirestoreValue(v);
   }
   return fields;
+}
+
+function fromFirestoreValue(value: Record<string, unknown> | undefined): unknown {
+  if (!value) return null;
+  if ("stringValue" in value) return value.stringValue;
+  if ("booleanValue" in value) return value.booleanValue;
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return value.doubleValue;
+  if ("nullValue" in value) return null;
+  if ("arrayValue" in value) {
+    const values = (value.arrayValue as { values?: Record<string, unknown>[] })?.values ?? [];
+    return values.map((v) => fromFirestoreValue(v));
+  }
+  if ("mapValue" in value) {
+    const fields =
+      ((value.mapValue as { fields?: Record<string, Record<string, unknown>> })?.fields) ?? {};
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(fields)) out[k] = fromFirestoreValue(v);
+    return out;
+  }
+  return null;
+}
+
+function fieldsToObject(fields: Record<string, Record<string, unknown>> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!fields) return out;
+  for (const [k, v] of Object.entries(fields)) out[k] = fromFirestoreValue(v);
+  return out;
+}
+
+export type MenuVisionJob = {
+  id: string;
+  status: string;
+  imageDataUrl: string | null;
+  dishes: Array<{ nameZh: string; nameEn?: string; category?: string }> | null;
+  error: string | null;
+  engine: string | null;
+  notifyJid: string | null;
+  updatedAt: string | null;
+};
+
+/** Public read (rules allow) — no auth. */
+export async function getMenuVisionJob(jobId: string): Promise<MenuVisionJob | null> {
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
+    `/databases/(default)/documents/${COLLECTIONS.menuVisionJobs}/${encodeURIComponent(jobId)}`;
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`getMenuVisionJob ${res.status}: ${text.slice(0, 300)}`);
+  }
+  const json = (await res.json()) as {
+    name?: string;
+    fields?: Record<string, Record<string, unknown>>;
+  };
+  const data = fieldsToObject(json.fields);
+  return {
+    id: jobId,
+    status: String(data.status ?? ""),
+    imageDataUrl: (data.imageDataUrl as string) ?? null,
+    dishes: (data.dishes as MenuVisionJob["dishes"]) ?? null,
+    error: (data.error as string) ?? null,
+    engine: (data.engine as string) ?? null,
+    notifyJid: (data.notifyJid as string) ?? null,
+    updatedAt: (data.updatedAt as string) ?? null,
+  };
+}
+
+/** List pending/running menu vision jobs (public runQuery). */
+export async function listPendingMenuVisionJobs(limit = 5): Promise<MenuVisionJob[]> {
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
+    `/databases/(default)/documents:runQuery`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: COLLECTIONS.menuVisionJobs }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "status" },
+            op: "IN",
+            value: {
+              arrayValue: {
+                values: [{ stringValue: "pending" }, { stringValue: "running" }],
+              },
+            },
+          },
+        },
+        orderBy: [{ field: { fieldPath: "updatedAt" }, direction: "ASCENDING" }],
+        limit,
+      },
+    }),
+  });
+  if (!res.ok) {
+    // Fallback: list collection and filter client-side (Spark public read)
+    const listUrl =
+      `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
+      `/databases/(default)/documents/${COLLECTIONS.menuVisionJobs}?pageSize=50`;
+    const listRes = await fetch(listUrl);
+    if (!listRes.ok) {
+      const text = await res.text();
+      throw new Error(`listPendingMenuVisionJobs ${res.status}: ${text.slice(0, 300)}`);
+    }
+    const listJson = (await listRes.json()) as {
+      documents?: { name?: string; fields?: Record<string, Record<string, unknown>> }[];
+    };
+    const jobs: MenuVisionJob[] = [];
+    for (const doc of listJson.documents ?? []) {
+      const id = doc.name?.split("/").pop() ?? "";
+      const data = fieldsToObject(doc.fields);
+      const status = String(data.status ?? "");
+      if (status !== "pending" && status !== "running") continue;
+      jobs.push({
+        id,
+        status,
+        imageDataUrl: (data.imageDataUrl as string) ?? null,
+        dishes: (data.dishes as MenuVisionJob["dishes"]) ?? null,
+        error: (data.error as string) ?? null,
+        engine: (data.engine as string) ?? null,
+        notifyJid: (data.notifyJid as string) ?? null,
+        updatedAt: (data.updatedAt as string) ?? null,
+      });
+    }
+    jobs.sort((a, b) => String(a.updatedAt).localeCompare(String(b.updatedAt)));
+    return jobs.slice(0, limit);
+  }
+  const rows = (await res.json()) as {
+    document?: { name?: string; fields?: Record<string, Record<string, unknown>> };
+  }[];
+  const jobs: MenuVisionJob[] = [];
+  for (const row of rows) {
+    if (!row.document) continue;
+    const id = row.document.name?.split("/").pop() ?? "";
+    const data = fieldsToObject(row.document.fields);
+    jobs.push({
+      id,
+      status: String(data.status ?? ""),
+      imageDataUrl: (data.imageDataUrl as string) ?? null,
+      dishes: (data.dishes as MenuVisionJob["dishes"]) ?? null,
+      error: (data.error as string) ?? null,
+      engine: (data.engine as string) ?? null,
+      notifyJid: (data.notifyJid as string) ?? null,
+      updatedAt: (data.updatedAt as string) ?? null,
+    });
+  }
+  return jobs;
+}
+
+export async function completeMenuVisionJob(
+  jobId: string,
+  result:
+    | { status: "done"; dishes: Array<{ nameZh: string; nameEn?: string; category?: string }> }
+    | { status: "error"; error: string }
+    | { status: "running" },
+  opts?: { dryRun?: boolean },
+): Promise<WriteResult> {
+  const now = new Date().toISOString();
+  const data: Record<string, unknown> = {
+    status: result.status,
+    updatedAt: now,
+    engine: result.status === "done" ? "grok" : null,
+  };
+  if (result.status === "done") {
+    data.dishes = result.dishes;
+    data.error = null;
+  } else if (result.status === "error") {
+    data.error = result.error;
+    data.dishes = null;
+  }
+  return upsertDocument(COLLECTIONS.menuVisionJobs, jobId, data, opts);
 }
 
 function samplePayloadPath(): string | null {
